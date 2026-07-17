@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Local Stack Manager</title>
+<style>
+  :root {
+    --bg:#0e0e12; --card:#16161d; --card2:#1d1d27; --text:#e6e6ee;
+    --muted:#8a8aa0; --acc:#6d4aff; --green:#36d399; --red:#f87272;
+    --amber:#fbbd23; --line:#2a2a36; --blue:#7fb3ff;
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; }
+  body {
+    background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    min-height:100vh;
+  }
+  header {
+    padding:1rem 1.25rem; border-bottom:1px solid var(--line);
+    display:flex; align-items:center; gap:1rem; flex-wrap:wrap;
+    position:sticky; top:0; background:var(--bg); z-index:10;
+  }
+  header h1 { font-size:1.15rem; margin:0; font-weight:650; }
+  header .sub { color:var(--muted); font-size:.85rem; }
+  .toolbar { margin-left:auto; display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+  .conn { font-size:.72rem; color:var(--muted); display:flex; align-items:center; gap:.4rem; margin-right:.5rem; }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--amber); box-shadow:0 0 8px var(--amber); }
+  .dot.on { background:var(--green); box-shadow:0 0 8px var(--green); }
+  .dot.off { background:var(--red); box-shadow:0 0 8px var(--red); }
+  button {
+    font:inherit; cursor:pointer; border:0; border-radius:8px;
+    padding:.5rem .8rem; font-weight:600; color:#fff; background:var(--acc);
+    transition:filter .12s, transform .05s;
+  }
+  button.ghost { background:var(--card2); color:var(--text); border:1px solid var(--line); }
+  button.danger { background:#3a1d22; color:var(--red); border:1px solid #5a2a30; }
+  button:active { transform:translateY(1px); }
+  button:disabled { opacity:.55; cursor:default; }
+  button.busy { animation:pillpulse 1.1s ease-in-out infinite; opacity:1 !important; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(460px,1fr)); gap:1rem; padding:1.25rem; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
+  .card .head { padding:.85rem 1rem; display:flex; align-items:flex-start; gap:.75rem; }
+  .card .title { font-weight:650; font-size:1rem; }
+  .card .desc { color:var(--muted); font-size:.78rem; margin-top:.2rem; line-height:1.35; }
+  .pill { margin-left:auto; font-size:.72rem; font-weight:700; padding:.25rem .6rem; border-radius:999px; white-space:nowrap; }
+  .pill.up { background:rgba(54,211,153,.15); color:var(--green); }
+  .pill.loading { background:rgba(251,189,35,.15); color:var(--amber); }
+  .pill.pending { background:rgba(251,189,35,.18); color:var(--amber); animation:pillpulse 1.1s ease-in-out infinite; }
+  @keyframes pillpulse { 0%,100%{ opacity:1 } 50%{ opacity:.4 } }
+  .pill.down { background:rgba(248,114,114,.15); color:var(--red); }
+  .pill.na { background:rgba(138,138,160,.15); color:var(--muted); }
+  .ports { font-size:.72rem; color:var(--muted); padding:0 1rem .4rem; line-height:1.6; }
+  .ports code { color:var(--acc); background:var(--card2); padding:.05rem .35rem; border-radius:5px; margin-right:.3rem; }
+  .ports .ph { color:var(--green); } .ports .pf { color:var(--red); } .ports .pn { color:var(--muted); }
+  .actions { display:flex; gap:.5rem; padding:.4rem 1rem .85rem; flex-wrap:wrap; }
+  .actions button { flex:1; min-width:80px; padding:.45rem .5rem; font-size:.85rem; }
+  .logwrap { border-top:1px solid var(--line); background:#0b0b0f; display:flex; flex-direction:column; }
+  .logbar { display:flex; align-items:center; gap:.5rem; padding:.4rem .8rem; font-size:.72rem; color:var(--muted); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  .logbar input[type=text] { flex:1; min-width:120px; background:var(--card2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:.25rem .5rem; font:inherit; font-size:.72rem; }
+  .logbar .auto { display:flex; align-items:center; gap:.3rem; }
+  .logbar button { font-size:.7rem; padding:.25rem .5rem; }
+  .log { margin:0; padding:.5rem .8rem; height:260px; overflow:auto;
+         font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+         font-size:.74rem; line-height:1.45; white-space:pre-wrap; word-break:break-word; }
+  .log .l { color:#c8c8d6; }
+  .log .ok { color:var(--green); }
+  .log .info { color:var(--blue); }
+  .log .warn { color:var(--amber); }
+  .log .err { color:var(--red); }
+  .log .file { color:#6b6b80; }
+  .log .hide { display:none; }
+  .testwrap { border-top:1px solid var(--line); background:#0d0d13; padding:.6rem .8rem .8rem; }
+  .testwrap .th { font-size:.72rem; color:var(--muted); margin-bottom:.45rem; display:flex; align-items:center; gap:.4rem; }
+  .testwrap .trow { display:flex; gap:.4rem; margin-bottom:.4rem; }
+  .testwrap input[type=text] { flex:1; min-width:100px; background:var(--card2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:.35rem .5rem; font:inherit; font-size:.78rem; }
+  .testbtns { display:flex; gap:.4rem; flex-wrap:wrap; margin-bottom:.5rem; }
+  .testbtns button { font-size:.76rem; padding:.35rem .6rem; background:var(--card2); color:var(--text); border:1px solid var(--line); }
+  .testbtns button:hover:not(:disabled) { filter:brightness(1.25); }
+  .tres { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.74rem; line-height:1.4; white-space:pre-wrap; word-break:break-word; padding:.5rem .6rem; border-radius:8px; background:#0b0b0f; border:1px solid var(--line); min-height:1.6rem; color:#c8c8d6; }
+  .tres.ok { border-color:#2a5a44; color:var(--green); }
+  .tres.err { border-color:#5a2a30; color:var(--red); }
+  .tres.run { color:var(--amber); }
+  .tres .badge { font-weight:700; margin-right:.4rem; }
+  footer { padding:.9rem 1.25rem 1.6rem; color:var(--muted); font-size:.74rem; line-height:1.5; }
+  a { color:var(--acc); }
+  #toast {
+    position:fixed; left:50%; bottom:1.2rem; transform:translateX(-50%);
+    background:var(--card2); border:1px solid var(--line); color:var(--text);
+    padding:.6rem 1rem; border-radius:10px; font-size:.82rem; opacity:0; pointer-events:none;
+    transition:opacity .25s; z-index:50; max-width:90vw;
+  }
+  #toast.show { opacity:1; }
+  .lansw { display:flex; align-items:center; gap:.4rem; font-size:.8rem;
+           color:var(--muted); cursor:pointer; user-select:none; margin-right:.5rem; }
+  .lansw input { accent-color:var(--acc); width:16px; height:16px; cursor:pointer; }
+  .lanbanner { margin:0 1rem 1rem; padding:.65rem .9rem; border-radius:8px;
+               background:rgba(109,74,255,.12); border:1px solid var(--acc);
+               color:var(--text); font-size:.9rem; line-height:1.5; }
+  .lanbanner code { background:var(--card2); padding:.05rem .35rem; border-radius:4px; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Local Stack Manager</h1>
+    <div class="sub">DocWorm / BuchTutor &mdash; lokaler KI-Stack auf 127.0.0.1</div>
+  </div>
+  <div class="toolbar">
+    <span class="conn" title="Verbindung zum Manager">
+      <span class="dot" id="connDot"></span><span id="connTxt">Verbinde…</span>
+    </span>
+    <label class="lansw" title="LiteLLM an 0.0.0.0 binden, damit das Handy im WLAN auf :4000 zugreifen kann. Erfordert LiteLLM-Restart.">
+      <input type="checkbox" id="lanToggle" onchange="setLan(this.checked)">
+      <span>LAN-Zugriff (Handy)</span>
+    </label>
+    <button class="ghost" id="all-start" onclick="actAll('start')">Alle starten</button>
+    <button class="ghost" id="all-restart" onclick="actAll('restart')">Alle restart</button>
+    <button class="danger" id="all-stop" onclick="actAll('stop')">Alle stoppen</button>
+  </div>
+</header>
+
+<div id="lanBanner" class="lanbanner" style="display:none"></div>
+
+<div class="grid" id="grid"></div>
+
+<footer>
+  Start-Reihenfolge empfohlen: <b>LLM-Backends</b> &rarr; <b>LiteLLM</b> &rarr; <b>FLUX</b> / <b>TTS</b>.
+  Logs werden live gestreamt (Server-Sent Events). Status pr&uuml;ft die jeweiligen
+  <code>/health</code>-Endpunkte. Manager-UI l&auml;uft auf
+  <span id="mgrport"></span>.
+</footer>
+
+<div id="toast"></div>
+
+<script>
+const sources = {};     // id -> EventSource
+const autoscroll = {};  // id -> bool
+const filters = {};     // id -> string
+const pending = {};     // id -> 'start' | 'stop' : Aktion laeuft, Ziel noch nicht erreicht
+
+function classify(line) {
+  const l = line.toLowerCase();
+  if (l.includes('[fehler]') || l.includes('[error]') || l.includes('traceback') || l.includes('error:') || l.includes('failed'))
+    return 'err';
+  if (l.includes('[warn]') || l.includes('warning')) return 'warn';
+  if (l.includes('[ok]') || l.startsWith('ok') || l.includes('bereit') || l.includes('ready') || l.includes('listening'))
+    return 'ok';
+  if (l.includes('[info]') || l.startsWith('info')) return 'info';
+  return 'l';
+}
+
+function stateLabel(s) {
+  return s === 'up' ? 'ONLINE' : s === 'loading' ? 'LÄDT…' : s === 'down' ? 'OFFLINE' : '—';
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+function setConn(state) {
+  const dot = document.getElementById('connDot');
+  const txt = document.getElementById('connTxt');
+  dot.className = 'dot ' + (state === 'on' ? 'on' : state === 'off' ? 'off' : '');
+  txt.textContent = state === 'on' ? 'Verbunden' : state === 'off' ? 'Getrennt' : 'Verbinde…';
+}
+
+function buildCards(servers) {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  servers.forEach(s => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="head">
+        <div>
+          <div class="title">${s.name}</div>
+          <div class="desc">${s.desc || ''}</div>
+        </div>
+        <span class="pill na" id="pill-${s.id}">…</span>
+      </div>
+      <div class="ports" id="ports-${s.id}"></div>
+      <div class="actions">
+        <button onclick="act('${s.id}','start')">Start</button>
+        <button class="ghost" onclick="act('${s.id}','restart')">Restart</button>
+        <button class="danger" onclick="act('${s.id}','stop')">Kill</button>
+      </div>
+      <div class="logwrap">
+        <div class="logbar">
+          <span>Live-Log</span>
+          <input type="text" id="filter-${s.id}" placeholder="Filter…"
+                 oninput="filters['${s.id}']=this.value.toLowerCase(); applyFilter('${s.id}');">
+          <button class="ghost" onclick="clearLog('${s.id}')">Leeren</button>
+          <span class="auto"><label><input type="checkbox" checked onchange="autoscroll['${s.id}']=this.checked"> auto-scroll</label></span>
+        </div>
+        <pre class="log" id="log-${s.id}"></pre>
+      </div>
+      ${testPanel(s)}`;
+    grid.appendChild(card);
+    autoscroll[s.id] = true;
+    filters[s.id] = '';
+    openStream(s.id);
+  });
+  refreshStatus();
+  setInterval(refreshStatus, 4000);
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => (
+    { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+function testPanel(s) {
+  if (!s.tests || !s.tests.cases || !s.tests.cases.length) return '';
+  const inp = s.tests.input || {};
+  const btns = s.tests.cases.map(c =>
+    `<button onclick="runTest('${s.id}','${c.id}')">${esc(c.label)}</button>`
+  ).join('');
+  return `
+    <div class="testwrap">
+      <div class="th">🧪 Funktionstest</div>
+      <div class="trow">
+        <input type="text" id="tinput-${s.id}" placeholder="${esc(inp.label || 'Eingabe')}"
+               value="${esc(inp.value || '')}">
+      </div>
+      <div class="testbtns" id="tbtns-${s.id}">${btns}</div>
+      <div class="tres" id="tres-${s.id}">Noch kein Test gelaufen.</div>
+    </div>`;
+}
+
+async function runTest(id, caseId) {
+  const resEl = document.getElementById('tres-' + id);
+  const inputEl = document.getElementById('tinput-' + id);
+  const btns = document.querySelectorAll('#tbtns-' + id + ' button');
+  if (!resEl) return;
+  btns.forEach(b => b.disabled = true);
+  resEl.className = 'tres run';
+  resEl.textContent = '⏳ Test läuft… (kann auf CPU dauern)';
+  try {
+    const r = await fetch('/api/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ server: id, case: caseId, text: inputEl ? inputEl.value : '' })
+    });
+    const j = await r.json();
+    resEl.className = 'tres ' + (j.ok ? 'ok' : 'err');
+    resEl.innerHTML = '<span class="badge">' + (j.ok ? '✓ OK' : '✗ FEHLER') + '</span>'
+      + esc(j.detail || '(keine Details)');
+  } catch (e) {
+    resEl.className = 'tres err';
+    resEl.textContent = '✗ NETZFEHLER: ' + e.message;
+  } finally {
+    btns.forEach(b => b.disabled = false);
+  }
+}
+
+function applyFilter(id) {
+  const f = filters[id] || '';
+  const logEl = document.getElementById('log-' + id);
+  if (!logEl) return;
+  for (const node of logEl.childNodes) {
+    const txt = node.textContent.toLowerCase();
+    node.classList.toggle('hide', f && !txt.includes(f));
+  }
+}
+
+function clearLog(id) {
+  const logEl = document.getElementById('log-' + id);
+  if (logEl) logEl.innerHTML = '';
+}
+
+function appendLog(id, line, cls, file) {
+  const logEl = document.getElementById('log-' + id);
+  if (!logEl) return;
+  const span = document.createElement('span');
+  span.className = cls;
+  if (file) {
+    const f = document.createElement('span');
+    f.className = 'file';
+    f.textContent = '[' + file + '] ';
+    span.appendChild(f);
+  }
+  span.appendChild(document.createTextNode(line + '\n'));
+  const f = filters[id] || '';
+  if (f && !span.textContent.toLowerCase().includes(f)) span.classList.add('hide');
+  logEl.appendChild(span);
+  const max = 5000;
+  while (logEl.childNodes.length > max) logEl.removeChild(logEl.firstChild);
+  if (autoscroll[id]) logEl.scrollTop = logEl.scrollHeight;
+}
+
+function renderStatus(s) {
+  const pill = document.getElementById('pill-' + s.id);
+  if (pill) {
+    const p = pending[s.id];
+    // Waehrend Start/Stop laeuft: pulsierende Fortschritts-Pill halten, bis das
+    // Ziel erreicht ist. So springt sie nicht bei jedem Health-Poll zurueck.
+    if (p === 'start' && s.state !== 'up') {
+      pill.className = 'pill pending'; pill.textContent = 'STARTET…';
+    } else if (p === 'stop' && s.state !== 'down') {
+      pill.className = 'pill pending'; pill.textContent = 'STOPPT…';
+    } else {
+      if (p) delete pending[s.id];   // Ziel erreicht
+      pill.className = 'pill ' + s.state; pill.textContent = stateLabel(s.state);
+    }
+  }
+  const ports = document.getElementById('ports-' + s.id);
+  if (ports && s.detail) {
+    ports.innerHTML = s.detail.map(d => {
+      const cls = d.code ? 'ph' : 'pn';
+      const lbl = d.code ? 'HTTP ' + d.code : 'kein Response';
+      return `<code>:${d.port}</code><span class="${cls}">${lbl}</span>`;
+    }).join(' &nbsp; ');
+  }
+}
+
+function openStream(id) {
+  if (sources[id]) { sources[id].close(); }
+  const es = new EventSource('/api/stream?server=' + id);
+  sources[id] = es;
+  es.onmessage = (e) => {
+    let obj; try { obj = JSON.parse(e.data); } catch { return; }
+    if (obj.type === 'status') {
+      renderStatus({ id, state: obj.state, detail: obj.detail });
+    } else if (obj.type === 'log') {
+      appendLog(id, obj.line, classify(obj.line), obj.file || null);
+    } else if (obj.type === 'error') {
+      appendLog(id, '[stream-error] ' + obj.msg, 'err', null);
+    }
+  };
+  es.onopen = () => setConn('on');
+  es.onerror = () => { /* Browser verbindet automatisch neu */ };
+}
+
+async function refreshStatus() {
+  try {
+    const r = await fetch('/api/status');
+    if (!r.ok) throw new Error('http ' + r.status);
+    const data = await r.json();
+    data.forEach(renderStatus);
+    setConn('on');
+  } catch (e) {
+    setConn('off');
+  }
+}
+
+async function act(id, action) {
+  const card = document.getElementById('log-' + id).closest('.card');
+  const myBtns = card ? card.querySelectorAll('.actions button') : [];
+  myBtns.forEach(b => { b.disabled = true; });
+  // Fortschritts-Pill: pending markieren -> renderStatus haelt die pulsierende
+  // STARTET…/STOPPT…-Anzeige, bis das Ziel (up bzw. down) erreicht ist.
+  // restart zaehlt fuer die Anzeige als Start (Ziel: up).
+  if (action !== 'stop') { pending[id] = 'start'; } else { pending[id] = 'stop'; }
+  renderStatus({ id, state: action === 'stop' ? 'up' : 'down', detail: null });
+  try {
+    const r = await fetch('/api/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ server: id, action })
+    });
+    const j = await r.json().catch(() => ({}));
+    toast((j.msg ? j.msg : (action + ' ' + id)) );
+  } catch (e) {
+    toast('Fehler: ' + e.message);
+  }
+  // SSE neu oeffnen, damit nur die frischen Logs (ab jetzt) angezeigt werden.
+  setTimeout(() => openStream(id), 400);
+  setTimeout(() => { myBtns.forEach(b => { b.disabled = false; }); }, 1500);
+  // Bis das Ziel erreicht ist eng nachpollen (SSE liefert Status auch, aber der
+  // Poll ist die Absicherung). Nach 90s Timeout: pending aufloesen, echten Zustand zeigen.
+  waitForTarget(id);
+}
+
+function waitForTarget(id, tries = 0) {
+  if (!pending[id]) return;                 // Ziel schon erreicht (via SSE/renderStatus)
+  if (tries > 90) { delete pending[id]; refreshStatus(); return; }  // Timeout-Sicherung
+  refreshStatus();
+  setTimeout(() => waitForTarget(id, tries + 1), 1000);
+}
+
+async function actAll(action) {
+  const labels = { start: ['Alle starten', 'Startet…'],
+                   stop:  ['Alle stoppen', 'Stoppt…'],
+                   restart: ['Alle restart', 'Reset…'] };
+  const btn = document.getElementById('all-' + action);
+  // Sofort (synchron, vor jedem await) Feedback geben — sonst bleibt der Button
+  // stumm, bis der Status-Fetch zurueck ist.
+  if (btn) { btn.classList.add('busy'); btn.textContent = labels[action][1]; }
+  const data = await fetch('/api/status').then(r => r.json()).catch(() => []);
+  toast('„' + labels[action][0] + '“ — ' + data.length + ' Dienste…');
+  for (const s of data) {
+    await act(s.id, action);
+    await new Promise(r => setTimeout(r, action === 'start' ? 1500 : 300));
+  }
+  // Button pulsiert weiter, bis alle Dienste ihr Ziel erreicht haben (pending leer).
+  const done = () => {
+    if (data.some(s => pending[s.id])) return setTimeout(done, 1000);
+    if (btn) { btn.classList.remove('busy'); btn.textContent = labels[action][0]; }
+  };
+  done();
+}
+
+function applyLan(s) {
+  const cb = document.getElementById('lanToggle');
+  if (cb) cb.checked = !!s.lan_mode;
+  const b = document.getElementById('lanBanner');
+  if (!b) return;
+  if (s.lan_mode) {
+    b.style.display = '';
+    b.innerHTML = 'LAN-Zugriff <b>aktiv</b> &mdash; LiteLLM bindet an <code>0.0.0.0</code>. '
+      + 'Vom Handy im WLAN: <code>http://' + s.lan_ip + ':4000/v1</code>. '
+      + '<b>LiteLLM einmal neu starten (Restart)</b>, damit die Bindung greift. '
+      + 'Firewall ggf. mit <code>firewall_open_4000.cmd</code> oeffnen.';
+  } else {
+    b.style.display = 'none';
+  }
+}
+
+async function loadSettings() {
+  try { applyLan(await (await fetch('/api/settings')).json()); } catch (e) {}
+}
+
+async function setLan(on) {
+  try {
+    const r = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lan_mode: on })
+    });
+    applyLan(await r.json());
+  } catch (e) {}
+}
+
+(async function init() {
+  document.getElementById('mgrport').textContent = location.port || '8800';
+  try {
+    const r = await fetch('/api/status');
+    const servers = await r.json();
+    buildCards(servers);
+    loadSettings();
+    setConn('on');
+  } catch (e) {
+    setConn('off');
+    document.getElementById('grid').innerHTML =
+      '<p style="padding:1.25rem;color:var(--muted)">Konnte Manager-API nicht erreichen. ' +
+      'Läuft <code>python stack_manager.py</code> auf ' + (location.port || '8800') + '?</p>';
+  }
+})();
+</script>
+</body>
+</html>

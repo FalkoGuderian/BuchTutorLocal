@@ -1,0 +1,23 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Runtime logs
+logs/
+
+# Voice models and model weights (downloaded on setup / user-provided)
+voices/
+sdcpp/
+
+# Generated test fixtures (created by gen_*.py)
+_audio_*.wav
+_apple_*.png
+test.wav
+
+# Manager UI persisted settings (local-only)
+stack_manager_settings.json
+
+# OS noise
+.DS_Store
+Thumbs.db

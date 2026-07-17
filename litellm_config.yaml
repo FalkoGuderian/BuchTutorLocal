@@ -1,0 +1,104 @@
+# LiteLLM als lokaler OpenRouter-Ersatz für DocWorm
+#
+# Ein Endpunkt für die App: http://localhost:4000/v1   (Key: sk-local-llm)
+# LiteLLM routet nach Modell-ID an die llama-server-Backends auf dem Windows-Host.
+#
+# LLM-Server starten: ./run_llm.sh     (Gemma :8080, bge-m3 :8081)
+# LiteLLM starten:   ./run_litellm.sh      (Proxy :4000)
+#
+# WICHTIG: Aus dem Container ist der Host nur über host.docker.internal erreichbar,
+# nicht über 127.0.0.1. Darum müssen die Backends mit --host 0.0.0.0 laufen
+# (run_llm.sh macht das) — sonst lehnt llama-server die Container-Verbindung ab.
+
+model_list:
+  # ── Gemma 4 E2B: Chat + Vision + AUDIO (llama-server mit mmproj) ───────────
+  # Das mmproj trägt beide Tower (clip.has_vision_encoder UND clip.has_audio_encoder).
+  # Audio als content-part: {"type":"input_audio","input_audio":{"data":<b64>,"format":"wav"}}
+  - model_name: gemma-4-e2b
+    litellm_params:
+      model: openai/gemma-4-e2b
+      api_base: http://127.0.0.1:8080/v1
+      api_key: not-needed
+
+  # Gleiches Backend, Reasoning aus -> ~2,8x schneller (7,1s statt 19,8s bei 14s Audio).
+  # Für Transkription/Voice immer diesen Alias nehmen.
+  - model_name: gemma-4-e2b-fast
+    litellm_params:
+      model: openai/gemma-4-e2b
+      api_base: http://127.0.0.1:8080/v1
+      api_key: not-needed
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: false
+
+  # ── Embeddings: bge-m3 (llama-server --embedding) ──────────────────────────
+  # Liefert native 1024 dim; app.html (_embedQuery, ~27209) truncatet auf 384 und
+  # L2-normalisiert -> passt zum int8-384-Index (baai-bge-m3-int8-d384.meta.json).
+  - model_name: bge-m3
+    litellm_params:
+      model: openai/bge-m3
+      api_base: http://127.0.0.1:8081/v1
+      api_key: not-needed
+
+  # Dieselbe Backend-Instanz unter der ID, die die App tatsächlich schickt: Die kommt
+  # nicht aus DEFAULT_MODELS, sondern aus der Index-Meta (baai-bge-m3-int8-d384.meta.json,
+  # "model": "baai/bge-m3") — also aus Daten, nicht aus Code. Ohne diesen Alias antwortet
+  # LiteLLM mit 400 und die Bibliothekssuche fällt still auf die Keyword-Suche zurück.
+  - model_name: baai/bge-m3
+    litellm_params:
+      model: openai/bge-m3
+      api_base: http://127.0.0.1:8081/v1
+      api_key: not-needed
+
+  # ── Chat-Fallback über die LM-Studio-App (:1234), rein Text ────────────────
+  # Nur Text: LM Studios OpenAI-Schicht kennt keinen Audio-Slot (siehe README).
+  - model_name: qwen3.6-12b
+    litellm_params:
+      model: openai/qwen3.6-12b-iq-ultra-heretic-uncensored-thinking-v2-hightop
+      api_base: http://127.0.0.1:1234/v1
+      api_key: sk-local-1234
+
+  # ── OpenRouter (Cloud) parallel erreichbar, falls OPENROUTER_API_KEY gesetzt ─
+  - model_name: openrouter-gemini
+    litellm_params:
+      model: openrouter/google/gemini-3.1-flash-lite-preview
+      api_key: os.environ/OPENROUTER_API_KEY
+
+  # ── TTS: Piper (piper_server.py auf :8082) ─────────────────────────────────
+  # Deutsch ist Standard. Die Sprache steuert der voice-Parameter im Request:
+  #   {"input": "...", "voice": "de"}   bzw.   {"voice": "en"}
+  # Alternativ exakte Stimmennamen (de_DE-thorsten-medium, en_US-lessac-medium).
+  # OpenAI-Namen (alloy, nova, ...) landen bewusst auf der Standardstimme.
+  #
+  # Nicht Qwen3-TTS: dessen GGUFs sind für qwentts.cpp gebaut, nicht für
+  # llama.cpp — siehe run_tts.sh (Kopfkommentar) und README.
+  - model_name: piper-tts
+    litellm_params:
+      model: openai/piper
+      api_base: http://127.0.0.1:8082/v1
+      api_key: not-needed
+
+  # ── Bildgenerierung: FLUX.2 Klein 4B (flux_server.py :8083, sd.cpp) ─────────
+  # Die App erzeugt Bilder NICHT ueber /images/generations, sondern ueber
+  # /chat/completions mit einem Bildmodell (OpenRouter/Gemini-Stil) und liest das
+  # Bild aus message.images[] (extractImageFromResponse, app.html ~36407).
+  # flux_server.py liefert genau diese Chat-Form und uebersetzt intern auf
+  # sd-server /v1/images/generations. Darum hier ein normaler openai/-Chat-Alias,
+  # KEIN LiteLLM-Image-Modell.
+  #
+  # WICHTIG: LiteLLM muss das Feld message.images durchreichen. Verifiziert im
+  # Smoke-Test (Bild-Abschnitt). Falls eine LiteLLM-Version es verschluckt: App
+  # im Lokal-Profil direkt auf http://127.0.0.1:8083/v1 zeigen lassen (nur fuer
+  # den Bild-Pfad) — dann faellt LiteLLM fuer Bilder weg.
+  - model_name: flux-klein
+    litellm_params:
+      model: openai/flux-klein
+      api_base: http://127.0.0.1:8083/v1
+      api_key: not-needed
+
+general_settings:
+  master_key: sk-local-llm
+  telemetry: false
+
+litellm_settings:
+  drop_params: true            # unbekannte Parameter der Backends ignorieren

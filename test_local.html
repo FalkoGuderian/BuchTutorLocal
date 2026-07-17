@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Local LLM Test</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; background:#111; color:#eee; }
+  input, button, pre { width: 100%; box-sizing: border-box; font-size: 1rem; }
+  input { padding: .6rem; margin-bottom: .5rem; border-radius: 8px; border: 1px solid #444; background:#222; color:#eee; }
+  button { padding: .7rem; border: 0; border-radius: 8px; background:#6d4aff; color:#fff; font-weight: 600; }
+  pre { white-space: pre-wrap; background:#1a1a1a; padding: 1rem; border-radius: 8px; margin-top: 1rem; min-height: 3rem; }
+</style>
+</head>
+<body>
+  <h2>Local LLM Test</h2>
+  <input id="base" value="http://127.0.0.1:4000/v1" />
+  <input id="key" value="sk-local-llm" />
+  <input id="model" value="gemma-4-e2b-fast" />
+  <input id="prompt" value="Sag kurz auf Deutsch: 1+1=" />
+  <button onclick="go()">Senden</button>
+  <pre id="out">Ergebnis erscheint hier…</pre>
+
+<script>
+async function go() {
+  const base = document.getElementById('base').value.replace(/\/+$/, '');
+  const key  = document.getElementById('key').value;
+  const model = document.getElementById('model').value;
+  const prompt = document.getElementById('prompt').value;
+  const out = document.getElementById('out');
+  out.textContent = '…warte';
+  try {
+    const r = await fetch(base + '/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], stream: false })
+    });
+    const j = await r.json();
+    if (j.error) { out.textContent = 'FEHLER: ' + JSON.stringify(j.error, null, 2); return; }
+    out.textContent = (j.choices?.[0]?.message?.content || '(leer)') + '\n\n--- meta ---\n' + JSON.stringify(j.usage || {});
+  } catch (e) {
+    out.textContent = 'NETZFEHLER: ' + e.message + '\n\nIst die Adresse erreichbar? (http://127.0.0.1:4000/health/liveliness)';
+  }
+}
+</script>
+</body>
+</html>
