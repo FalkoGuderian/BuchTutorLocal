@@ -1,6 +1,8 @@
 # BuchTutorLocal — Fully Local OpenAI-Compatible AI Stack
 
 Run the [BuchTutor](https://github.com/FalkoGuderian/BuchTutor) tutoring app
+(available on Google Play as
+[DocWorm](https://play.google.com/store/apps/details?id=com.profbookworm.app))
 entirely offline. This repository provides a local AI backend that mimics the
 OpenAI-compatible API surface the app already talks to, so no data leaves the
 machine and no cloud key is required for the core features.
