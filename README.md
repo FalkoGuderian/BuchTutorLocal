@@ -1,5 +1,7 @@
 # BuchTutorLocal — Fully Local OpenAI-Compatible AI Stack
 
+![BuchTutorLocal architecture — the DocWorm app calls a local LiteLLM router that fans out to a local LLM (chat/vision/audio), embeddings, image generation and TTS; nothing leaves the device](stack_architecture.gif)
+
 Run [DocWorm](https://play.google.com/store/apps/details?id=com.profbookworm.app)
 entirely offline. This repository provides a local AI backend that mimics the
 OpenAI-compatible API surface the app already talks to, so no data leaves the
@@ -173,11 +175,12 @@ PC's LAN IP in the app (e.g. `http://192.168.x.x:4000/v1`).
 | `test_local.html` | Single-file test page (base URL / key / model / prompt → `POST /v1/chat/completions`). |
 | `gen_audio_fixture.py` | Regenerates the speech fixture (`_audio_30s.wav`) used by the smoke test's audio section. |
 | `gen_image_fixture.py` | Regenerates the image fixture (`_apple_red.png`) used by the smoke test's image section. |
-| `firewall_open_4000.cmd` | Opens the Windows Firewall for inbound TCP 4000 (run as admin). |
-| `firewall_open_8000.cmd` | Opens the Windows Firewall for inbound TCP 8000 (run as admin; for serving `test_local.html` over LAN). |
+| `stack_architecture.gif` | Animated architecture diagram (shown at the top, for docs/social sharing). |
 
 Not in the repo (gitignored): `.venv/`, `logs/`, `voices/`, `sdcpp/`, generated
-fixtures (`_audio_*.wav`, `_apple_*.png`), and `stack_manager_settings.json`.
+fixtures (`_audio_*.wav`, `_apple_*.png`), `stack_manager_settings.json`, and the
+diagram build tooling (`stack-architecture-animation.html`, `capture_stack_gif.js`,
+`node_modules/`). Only the rendered `stack_architecture.gif` is committed.
 
 ---
 

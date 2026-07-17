@@ -18,6 +18,14 @@ test.wav
 # Manager UI persisted settings (local-only)
 stack_manager_settings.json
 
+# Diagram build tooling (only the rendered stack_architecture.gif is committed)
+stack-architecture-animation.html
+capture_stack_gif.js
+package.json
+package-lock.json
+node_modules/
+frames/
+
 # OS noise
 .DS_Store
 Thumbs.db

@@ -50,14 +50,6 @@ model_list:
       api_base: http://127.0.0.1:8081/v1
       api_key: not-needed
 
-  # ── Chat-Fallback über die LM-Studio-App (:1234), rein Text ────────────────
-  # Nur Text: LM Studios OpenAI-Schicht kennt keinen Audio-Slot (siehe README).
-  - model_name: qwen3.6-12b
-    litellm_params:
-      model: openai/qwen3.6-12b-iq-ultra-heretic-uncensored-thinking-v2-hightop
-      api_base: http://127.0.0.1:1234/v1
-      api_key: sk-local-1234
-
   # ── OpenRouter (Cloud) parallel erreichbar, falls OPENROUTER_API_KEY gesetzt ─
   - model_name: openrouter-gemini
     litellm_params:
