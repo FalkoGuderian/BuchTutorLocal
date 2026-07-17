@@ -1,8 +1,6 @@
 # BuchTutorLocal — Fully Local OpenAI-Compatible AI Stack
 
-Run the [BuchTutor](https://github.com/FalkoGuderian/BuchTutor) tutoring app
-(available on Google Play as
-[DocWorm](https://play.google.com/store/apps/details?id=com.profbookworm.app))
+Run [DocWorm](https://play.google.com/store/apps/details?id=com.profbookworm.app)
 entirely offline. This repository provides a local AI backend that mimics the
 OpenAI-compatible API surface the app already talks to, so no data leaves the
 machine and no cloud key is required for the core features.
@@ -16,7 +14,6 @@ app.html ──► LiteLLM :4000 ──┬──► llama-server  :8080  Gemma 4
                              ├──► piper_server  :8082  Piper             (TTS, DE + EN)
                              ├──► flux_server   :8083  FLUX.2 Klein 4B   (Image generation)
                              │        └──► sd-server :8084 (sd.cpp, internal, weights kept warm)
-                             ├──► LM Studio     :1234  Qwen3.6-12B       (Chat fallback, text only)
                              └──► OpenRouter (Cloud, optional, needs OPENROUTER_API_KEY)
 ```
 
@@ -39,7 +36,6 @@ are implemented and verified locally. The app must be pointed at this endpoint
 | Embeddings   | bge-m3                 | llama-server          | 8081 |
 | TTS (voice)  | Piper (DE + EN)        | piper_server.py       | 8082 |
 | Image gen.   | FLUX.2 Klein 4B        | flux_server.py/sd.cpp | 8083 |
-| Chat backup  | Qwen3.6-12B            | LM Studio             | 1234 |
 | Cloud (opt.) | Gemini (OpenRouter)    | OpenRouter            | —    |
 
 ---
@@ -104,7 +100,6 @@ maps each ID to a local backend via `litellm_config.yaml`.
 | `baai/bge-m3`       | llama-server `:8081`        | same as above (alias used by the app's index metadata)           | Embeddings (alias) |
 | `piper-tts`         | piper_server.py `:8082`     | `voices/` (downloaded by `run_tts.sh setup`)                     | TTS, `voice:"de"` (default) or `"en"` |
 | `flux-klein`        | flux_server.py `:8083`      | `<FLUX_MODEL_DIR>/flux-2-klein-4b-Q4_0.gguf` + `Qwen3-4B-Q4_K_M.gguf` + `flux2-vae.safetensors` | Image generation (FLUX.2 Klein 4B) |
-| `qwen3.6-12b`       | LM Studio `:1234`           | LM Studio model directory (text-only server)                     | Chat, text only |
 | `openrouter-gemini` | OpenRouter (cloud)          | requires `OPENROUTER_API_KEY`                                    | Chat (cloud fallback) |
 
 The API key for the whole stack is a fixed placeholder: `sk-local-llm`. None of
@@ -131,7 +126,6 @@ stored in this repository (they are large binaries). Default source locations:
   - The `sd-server.exe` binary is fetched by `./run_flux.sh setup` from the
     [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp)
     win-cpu release and unpacked into `sdcpp/`.
-- **Qwen3.6-12B** — loaded through the LM Studio desktop app (its own runtime).
 
 All of these locations are overridable via environment variables (see
 `run_llm.sh` / `run_flux.sh` for `LMS_MODELS`, `FLUX_MODEL_DIR`, `FLUX_SIZE`,
@@ -215,9 +209,8 @@ fixtures (`_audio_*.wav`, `_apple_*.png`), and `stack_manager_settings.json`.
 
 - Windows with git-bash (scripts use `bash`, `curl`, `taskkill`, `powershell`).
 - Python 3 + `pip` (for the venv, Piper, and the servers/tests).
-- [LM Studio](https://lmstudio.ai/) installed (provides `llama-server.exe` and
-  can optionally serve Qwen3.6-12B on `:1234`). The Gemma/bge-m3 weights must
-  be downloaded into LM Studio's model folder.
+- [LM Studio](https://lmstudio.ai/) installed (provides `llama-server.exe`).
+  The Gemma/bge-m3 weights must be downloaded into LM Studio's model folder.
 - The Gemma 4 E2B GGUF **and** its `mmproj` file (vision + audio tower).
 - Free RAM for the loaded weights (Gemma ~few GB, bge-m3 small, FLUX.2 ~6 GB if
   image generation is used).
